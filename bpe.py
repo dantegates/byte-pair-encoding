@@ -1,8 +1,10 @@
 import collections
+
+import sklearn
 from bpe_utils import get_stats, merge_vocab
 
 
-class BytePairEncoder:
+class BytePairEncoder(sklearn.base.TransformerMixin):
     def __init__(self, n_merges, vocab_size):
         self.n_merges = n_merges
         self.vocab_size = vocab_size
