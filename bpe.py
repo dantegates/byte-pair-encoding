@@ -1,40 +1,66 @@
 import collections
 
+import numpy as np
 import sklearn
-from bpe_utils import get_stats, merge_vocab
+
+
+def get_stats(vocab, removed_indices):
+    pairs = collections.defaultdict(int)
+    indices = collections.defaultdict(list)
+    valid_indices = (i for i in range(len(vocab) - 1)
+                     if not i in removed_indices)
+    i_left = next(valid_indices)
+    for i_right in valid_indices:
+        pair = vocab[i_left], vocab[i_right]
+        pairs[pair] += 1
+        indices[pair].append(i_left)
+    return pairs, indices
+
+def merge_vocab(pair, vocab, pair_indices, removed_indices):
+    new = ''.join(pair)
+    for i in reversed(pair_indices):
+        vocab[i] = new
+    removed_indices.update(pair_indices)
+    return vocab
 
 
 class BytePairEncoder(sklearn.base.TransformerMixin):
-    def __init__(self, n_merges, vocab_size):
+    def __init__(self, n_merges):
         self.n_merges = n_merges
-        self.vocab_size = vocab_size
-        self._space_escape = '▁'
-        self._unkown_token = 0
+
         self.vocab = {}
+        self._reverse_vocab = {}
         self._bpe_tree = None
 
-    def fit(self, X):
-        vocab = self._split_X(X)
-        for _ in range(self.n_merges):
-            pairs, pair_index = get_stats(vocab)
-            best = max(pairs, key=pairs.get)
-            vocab = merge_vocab(best, vocab, pair_index[best])
+        self._space_escape = '▁'
+        self._unkown_token = 0
 
-        vocab = collections.Counter(vocab)
+    def fit(self, X):
+        vocab = list(self._process_X(X))
+        initial_vocab = set(vocab)
+        removed_indices = set()
+        for _ in range(self.n_merges):
+            pairs, pair_index = get_stats(vocab, removed_indices)
+            best = max(pairs, key=pairs.get)
+            vocab = merge_vocab(best, vocab, pair_index[best], removed_indices)
+
         # reserve 0 for unkowns
-        self.vocab = {v: i for i, v in enumerate(sorted(vocab, key=vocab.get, reverse=True), start=1)}
+        vocab = set(vocab)
+        vocab.update(initial_vocab)
+        self.vocab = {k: i for i, k in enumerate(vocab, start=1)}
+        self._reverse_vocab = {v: k for k, v in self.vocab.items()}
         self._bpe_tree = build_bpe_tree(self.vocab)
 
     def transform(self, X):
+        X = self._process_X(X)
         tokens = apply_bpe_tree(X, self._bpe_tree)
-        return [self._unkown_token if t is None else t
-                for t in tokens]
+        return np.array([self._unkown_token if t is None else t for t in tokens])
 
     def inverse_transform(self, X):
-        pass
+        return [self._reverse_vocab[t] if t > 0 else '<unk>' for t in X]
 
-    def _split_X(self, X):
-        return list(self._space_escape.join(X.split()))
+    def _process_X(self, X):
+        return self._space_escape.join(X.split())   
 
 
 class Node:
