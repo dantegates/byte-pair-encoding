@@ -1,3 +1,4 @@
+import collections
 import time
 
 import sklearn
@@ -7,51 +8,70 @@ from .bpe_utils import get_stats, merge_vocab
 from .tree import build_bpe_tree, apply_bpe_tree
 
 
-class BytePairEncoder(sklearn.base.TransformerMixin):
-    def __init__(self, n_merges, n_jobs=None, chunksize=None, log_level=None,
-                 vocab_threshold=None):
+class BytePairEncoder(sklearn.base.TransformerMixin):    
+    _unkown_character = '<unk>'
+    _space_escape = '▁'
+
+    def __init__(self, n_merges, vocab_threshold=None, log_level=None):
         self.n_merges = n_merges
-        self.n_jobs = n_jobs
-        self.chunksize = chunksize
         self.log_level = log_level
         self.vocab_threshold = vocab_threshold
-        self._space_escape = '▁'
-        self._unkown_token = 0
-        self._unkown_character = '<unk>'
+
+        # these will all be set during .fit()
+        self.vocab = None
+        self._vocab_stats = None
+        self._reverse_vocab = None
+        self._bpe_tree = None
 
     def fit(self, X):
-        vocab = list(self._process_X(X))
-        initial_vocab = set(vocab)
-        removed_indices = set()
+        # get the initial vocabular consisting of all unique characters
+        initial_vocab = set(X)
+        initial_vocab.add(self._space_escape)
+
+        words = self._split_X(X)
+        vocab = [(list(word), freq) for word, freq in collections.Counter(words).items()]
+
         t_started = time.time()
         for i in range(self.n_merges):
             if self.log_level is not None and i % self.log_level == 0:
                 print(f'{i+1} iterations complete in {time.time() - t_started}')
-            pairs, pair_index = get_stats(vocab, removed_indices)
-            best = max(pairs, key=pairs.get)
+            pair_stats, pair_index = get_stats(vocab)
+            best = max(pair_stats, key=pair_stats.get)
             if self.vocab_threshold is not None \
-                    and pairs[best] < self.vocab_threshold:
+                    and pair_stats[best] < self.vocab_threshold:
                 print(f'Stopping after {i} iterations. Best pair occurs '
-                      f'{pairs[best]} < {self.vocab_threshold} times')
+                      f'{pair_stats[best]} < {self.vocab_threshold} times')
                 break
-            vocab = merge_vocab(best, vocab, pair_index[best], removed_indices)
+            vocab = merge_vocab(best, vocab, pair_index[best])
 
-        self._vocab_stats = collections.Counter(vocab)
-        vocab = set(vocab)
-        vocab.update(initial_vocab)
-        # reserve 0 for unkowns
-        self.vocab = {k: i for i, k in enumerate(vocab, start=1)}
-        self.vocab[self._unkown_character] = 0
+        # build the final vocabulary
+        vocab_stats = collections.Counter()
+        _ = [vocab_stats.update({subword: freq})
+                                for word, freq in vocab
+                                for subword in word]
+        final_vocab = set(vocab_stats)
+        final_vocab.update(initial_vocab)
+        final_vocab = {k: i for i, k in enumerate(final_vocab, start=1)}
+        final_vocab[self._unkown_character] = 0
+        self.vocab = final_vocab
+
+        # these are needed for .transform() and .inverse_transform()
         self._reverse_vocab = {i: k for k, i in self.vocab.items()}
         self._bpe_tree = build_bpe_tree(self.vocab)
 
+        # keep this for curiosity/debugging
+        self._vocab_stats = vocab_stats
+
     def transform(self, X):
-        X = self._process_X(X)
+        X = self._split_X(X)
+        return np.concatenate([self._transform_string(x) for x in X])
+
+    def _transform_string(self, X):
         tokens = apply_bpe_tree(X, self._bpe_tree)
-        return np.array([self._unkown_token if t is None else t for t in tokens])
+        return np.array([0 if t is None else t for t in tokens])                
 
     def inverse_transform(self, X):
         return [self._reverse_vocab[t] for t in X]
 
-    def _process_X(self, X):
-        return self._space_escape.join(X.split())
+    def _split_X(self, X):
+        return [word + self._space_escape for word in X.split()]

@@ -1,24 +1,29 @@
-def get_stats(list vocab, set removed_indices):
-    cdef int i_left, i_right
-    cdef dict pairs = {}
-    cdef dict indices = {}
-    valid_indices = (i for i in range(len(vocab) - 1)
-                     if not i in removed_indices)
-    i_left = next(valid_indices)
-    for i_right in valid_indices:
-        pair = vocab[i_left], vocab[i_right]
-        if not pair in pairs:
-            pairs[pair] = 0
-        pairs[pair] += 1
-        if not pair in indices:
-            indices[pair] = []
-        indices[pair].append(i_left)
-    return pairs, indices
+%%cython
+def get_stats(list vocab):
+    cdef c1, c2
+    cdef list word
+    cdef int freq, vocab_pos, word_pos
+    cdef dict pair_stats = {}
+    cdef dict pair_indices = {}
+    cdef tuple pair
+    for vocab_pos in range(len(vocab)):
+        word, freq = vocab[vocab_pos]
+        for word_pos in range(len(word) - 1):
+            pair = word[word_pos], word[word_pos + 1]
+            if not pair in pair_stats:
+                pair_stats[pair] = 0
+            pair_stats[pair] += freq
+            if not pair in pair_indices:
+                pair_indices[pair] = []
+            pair_indices[pair].append((vocab_pos, word_pos))
+    return pair_stats, pair_indices
 
-def merge_vocab(tuple pair, list vocab, list pair_indices, set removed_indices):
-    cdef str new = ''.join(pair)
-    cdef int i
-    for i in pair_indices:
-        vocab[i] = new
-    removed_indices.update(pair_indices)
+
+def merge_vocab(tuple pair, list vocab, list pair_indices):
+    cdef int vocab_pos, word_pos
+    cdef list word
+    for vocab_pos, word_pos in reversed(pair_indices):
+        word, _ = vocab[vocab_pos]
+        word[word_pos] = word[word_pos] + word[word_pos + 1]
+        word.pop(word_pos + 1)
     return vocab
