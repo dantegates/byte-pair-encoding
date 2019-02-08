@@ -33,7 +33,7 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
 
         t_started = time.time()
         i = 0
-        while self._vocab_size(vocab) < self.target_vocab_size:
+        while self._compute_num_subwords(vocab) < self.target_vocab_size:
             if self.log_level is not None \
                     and i and i % self.log_level == 0:
                 print(f'{i+1} iterations complete in {time.time() - t_started}')
@@ -79,5 +79,9 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
     def _split_X(self, X):
         return [word + self._space_escape for word in X.split()]
 
-    def _vocab_size(self, vocab):
+    def _compute_num_subwords(self, vocab):
         return len(set(subword for word, _ in vocab for subword in word))
+
+    @property
+    def vocab_size(self):
+        return len(self.vocab)
