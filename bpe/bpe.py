@@ -34,8 +34,7 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
         t_started = time.time()
         i = 0
         while self._compute_num_subwords(vocab) < self.target_vocab_size:
-            if self.log_level is not None \
-                    and i and i % self.log_level == 0:
+            if self.log_level is not None (i + 1) % self.log_level == 0:
                 print(f'{i+1} iterations complete in {time.time() - t_started}')
             pair_stats, pair_index = get_stats(vocab)
             best = max(pair_stats, key=pair_stats.get)
