@@ -12,8 +12,8 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
     _unkown_character = '<unk>'
     _space_escape = '▁'
 
-    def __init__(self, n_merges, vocab_threshold=None, log_level=None):
-        self.n_merges = n_merges
+    def __init__(self, target_vocab_size, vocab_threshold=None, log_level=None):
+        self.target_vocab_size = target_vocab_size
         self.log_level = log_level
         self.vocab_threshold = vocab_threshold
 
@@ -32,8 +32,10 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
         vocab = [(list(word), freq) for word, freq in collections.Counter(words).items()]
 
         t_started = time.time()
-        for i in range(self.n_merges):
-            if self.log_level is not None and i % self.log_level == 0:
+        i = 0
+        while self._vocab_size(vocab) < self.target_vocab_size:
+            if self.log_level is not None \
+                    and i and i % self.log_level == 0:
                 print(f'{i+1} iterations complete in {time.time() - t_started}')
             pair_stats, pair_index = get_stats(vocab)
             best = max(pair_stats, key=pair_stats.get)
@@ -43,6 +45,7 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
                       f'{pair_stats[best]} < {self.vocab_threshold} times')
                 break
             vocab = merge_vocab(best, vocab, pair_index[best])
+            i += 1
 
         # build the final vocabulary
         vocab_stats = collections.Counter()
@@ -75,3 +78,6 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
 
     def _split_X(self, X):
         return [word + self._space_escape for word in X.split()]
+
+    def _vocab_size(self, vocab):
+        return len(set(subword for word, _ in vocab for subword in word))
