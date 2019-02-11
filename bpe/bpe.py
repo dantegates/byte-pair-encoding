@@ -12,7 +12,7 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
     _unkown_character = '<unk>'
     _space_escape = '▁'
 
-    def __init__(self, target_vocab_size, vocab_threshold=None, log_level=None):
+    def __init__(self, target_vocab_size, vocab_threshold=1, log_level=None):
         self.target_vocab_size = target_vocab_size
         self.log_level = log_level
         self.vocab_threshold = vocab_threshold
@@ -25,7 +25,8 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
 
     def fit(self, X):
         # get the initial vocabular consisting of all unique characters
-        initial_vocab = set(X)
+        initial_vocab = collections.Counter(X)
+        initial_vocab = {k for k, v in initial_vocab.items() if v >= self.vocab_threshold}
         initial_vocab.add(self._space_escape)
 
         words = self._split_X(X)
