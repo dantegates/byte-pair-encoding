@@ -18,11 +18,11 @@ def get_stats(list vocab):
     return pair_stats, pair_indices
 
 
-def merge_vocab(tuple pair, list vocab, list pair_indices):
+def merge_vocab(str new, list vocab, list pair_indices):
     cdef int vocab_pos, word_pos
     cdef list word
     for vocab_pos, word_pos in reversed(pair_indices):
         word, _ = vocab[vocab_pos]
-        word[word_pos] = word[word_pos] + word[word_pos + 1]
+        word[word_pos] = new
         word.pop(word_pos + 1)
     return vocab

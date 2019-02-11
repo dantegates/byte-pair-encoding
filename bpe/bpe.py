@@ -45,7 +45,7 @@ class BytePairEncoder(sklearn.base.TransformerMixin):
                 print(f'Stopping after {i} iterations. Best pair occurs '
                       f'{pair_stats[best]} < {self.vocab_threshold} times')
                 break
-            vocab = merge_vocab(best, vocab, pair_index[best])
+            vocab = merge_vocab(''.join(best), vocab, pair_index[best])
 
         # build the final vocabulary
         vocab_stats = collections.Counter()
