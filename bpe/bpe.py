@@ -4,7 +4,7 @@ import time
 import sklearn
 import numpy as np
 
-from .bpe_utils import get_stats, merge_vocab
+from .utils import get_stats, merge_vocab
 from .tree import build_bpe_tree, apply_bpe_tree
 
 

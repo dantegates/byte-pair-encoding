@@ -1,4 +1,3 @@
-%%cython
 def get_stats(list vocab):
     cdef c1, c2
     cdef list word
